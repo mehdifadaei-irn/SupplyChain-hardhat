@@ -43,6 +43,10 @@ contract SupplyChain {
 
   mapping(uint256 => Product) public s_allProducts;
 
+  // for tack each address have how many Product?
+  mapping(address => mapping(uint256 => Product)) s_address_Prod;
+  mapping(address => uint256) s_countAddress;
+
   modifier onlyOwner(uint256 _prodId) {
     address lastOwner = OwnerOf(_prodId);
     if (msg.sender != lastOwner) revert SupplyChain__OnlyOwnerCanChangeOwnibility();
@@ -63,7 +67,10 @@ contract SupplyChain {
       0,
       0
     );
+
     s_allProducts[prodId] = newProd;
+    s_address_Prod[msg.sender][s_countAddress[msg.sender]] = newProd;
+    s_countAddress[msg.sender]++;
     emit Added(prodId);
 
     prodId++;
@@ -111,6 +118,16 @@ contract SupplyChain {
   /////////////////////
   // Getter Functions //
   /////////////////////
+
+  // get how many this address have product
+  function getNumberOfProds(address _add) public view returns (uint256) {
+    return s_countAddress[_add];
+  }
+
+  // when we have number of prodcut with up func we can get each prodcut we want from specific address!
+  function getProdByAddress(address _add, uint256 index) public view returns (Product memory) {
+    return s_address_Prod[_add][index];
+  }
 
   // get the last owner of specific product
   function OwnerOf(uint256 _prodId) public view returns (address) {
