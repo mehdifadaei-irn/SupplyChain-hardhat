@@ -13,6 +13,16 @@ error SupplyChain__OnlyOwnerCanChangeOwnibility();
 contract SupplyChain {
   uint256 private prodId = 0;
 
+  struct Product {
+    uint256 productId;
+    address creator;
+    string productName;
+    uint256 timeCreated;
+    uint256 initialCost;
+    uint256 OwnStateId;
+    uint256 CostStateId;
+  }
+
   struct OwnState {
     address owner;
     uint256 timeOwned;
@@ -25,27 +35,16 @@ contract SupplyChain {
     string description;
   }
 
-  struct Product {
-    uint256 productId;
-    address creator;
-    string productName;
-    uint256 timeCreated;
-    uint256 initialCost;
-    uint256 OwnStateId;
-    uint256 CostStateId;
-  }
-
-  event Added(uint256 indexed itemId);
-  event OnerStateAdded(uint256 indexed itemId, uint256 indexed ownStateId);
+  event Added(uint256 indexed itemId, string indexed itemName);
+  event OwnerStateAdded(uint256 indexed itemId, uint256 indexed ownStateId);
+  event CostStateAdded(uint256 indexed itemId, uint256 indexed ownStateId);
 
   mapping(uint256 => mapping(uint256 => OwnState)) s_productOwnerState;
   mapping(uint256 => mapping(uint256 => CostState)) s_productCostState;
 
   mapping(uint256 => Product) public s_allProducts;
 
-  // for tack each address have how many Product?
-  mapping(address => mapping(uint256 => Product)) s_address_Prod;
-  mapping(address => uint256) s_countAddress;
+  // for track each address how many Product have?
 
   modifier onlyOwner(uint256 _prodId) {
     address lastOwner = OwnerOf(_prodId);
@@ -69,9 +68,8 @@ contract SupplyChain {
     );
 
     s_allProducts[prodId] = newProd;
-    s_address_Prod[msg.sender][s_countAddress[msg.sender]] = newProd;
-    s_countAddress[msg.sender]++;
-    emit Added(prodId);
+
+    emit Added(prodId, _productName);
 
     prodId++;
     return true;
@@ -91,7 +89,7 @@ contract SupplyChain {
     s_productOwnerState[_prodId][s_allProducts[_prodId].OwnStateId].timeOwned = block.timestamp;
     s_productOwnerState[_prodId][s_allProducts[_prodId].OwnStateId].description = _disc;
 
-    emit OnerStateAdded(_prodId, s_allProducts[_prodId].OwnStateId);
+    emit OwnerStateAdded(_prodId, s_allProducts[_prodId].OwnStateId);
 
     return true;
   }
@@ -110,7 +108,7 @@ contract SupplyChain {
     s_productCostState[_prodId][s_allProducts[_prodId].CostStateId].timeCosted = block.timestamp;
     s_productCostState[_prodId][s_allProducts[_prodId].CostStateId].description = _disc;
 
-    emit OnerStateAdded(_prodId, s_allProducts[_prodId].OwnStateId);
+    emit CostStateAdded(_prodId, s_allProducts[_prodId].OwnStateId);
 
     return true;
   }
@@ -118,16 +116,6 @@ contract SupplyChain {
   /////////////////////
   // Getter Functions //
   /////////////////////
-
-  // get how many this address have product
-  function getNumberOfProds(address _add) public view returns (uint256) {
-    return s_countAddress[_add];
-  }
-
-  // when we have number of prodcut with up func we can get each prodcut we want from specific address!
-  function getProdByAddress(address _add, uint256 index) public view returns (Product memory) {
-    return s_address_Prod[_add][index];
-  }
 
   // get the last owner of specific product
   function OwnerOf(uint256 _prodId) public view returns (address) {
@@ -229,5 +217,74 @@ contract SupplyChain {
   // get witch item and ther own costPrice at that state
   function getSpecificCost(uint256 _prodId, uint256 _state) public view returns (CostState memory) {
     return s_productCostState[_prodId][_state];
+  }
+
+  // struct Product {
+  //   uint256 productId;
+  //   address creator;
+  //   string productName;
+  //   uint256 timeCreated;
+  //   uint256 initialCost;
+  //   uint256 OwnStateId;
+  //   uint256 CostStateId;
+  // }
+
+  // returns array of all Product with  our speific address
+  function getProdWithAddress(address _address) public view returns (Product[] memory) {
+    Product[] memory result = new Product[](5);
+    uint256 index = 0;
+    for (uint256 j = 0; j < prodId; j++) {
+      if (OwnerOf(j) == _address) {
+        result[index].productId = s_allProducts[j].productId;
+        result[index].creator = s_allProducts[j].creator;
+        result[index].productName = s_allProducts[j].productName;
+        result[index].timeCreated = s_allProducts[j].timeCreated;
+        result[index].initialCost = s_allProducts[j].initialCost;
+        result[index].OwnStateId = s_allProducts[j].OwnStateId;
+        result[index].CostStateId = s_allProducts[j].CostStateId;
+        index++;
+      }
+    }
+
+    return result;
+  }
+
+  // returns history of costs in specific product
+  function getHistoryOfCosts(uint256 _prodId) public view returns (uint256[] memory) {
+    uint256[] memory result = new uint256[](10);
+    uint256 index = 0;
+    if (s_allProducts[_prodId].OwnStateId == 0) {
+      result[index] = CostOf(_prodId);
+    } else {
+      for (uint256 k = 0; k <= s_allProducts[_prodId].CostStateId; k++) {
+        if (k == 0) {
+          result[index] = s_allProducts[_prodId].initialCost;
+          index++;
+        }
+        result[index] = s_productCostState[_prodId][k + 1].cost;
+        index++;
+      }
+    }
+
+    return result;
+  }
+
+  function getHistoryOfOwners(uint256 _prodId) public view returns (address[] memory) {
+    address[] memory result = new address[](10);
+    uint256 index = 0;
+    if (s_allProducts[_prodId].CostStateId == 0) {
+      result[index] = OwnerOf(_prodId);
+    } else {
+      for (uint256 k = 0; k <= s_allProducts[_prodId].CostStateId; k++) {
+        if (k == 0) {
+          result[index] = s_allProducts[_prodId].creator;
+          index++;
+        }
+        result[index] = s_productOwnerState[_prodId][k + 1].owner;
+        index++;
+      }
+    }
+
+    return result;
   }
 }
